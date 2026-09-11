@@ -381,13 +381,17 @@ class TritonReplayREPL(cmd.Cmd):
         return model_name, input_shapes
 
 if (__name__ == "__main__"):
-    parser = argparse.ArgumentParser(description="SONIC debugging interface - a simple REPL for replaying Triton inference requests")
-    parser.add_argument("--working-dir", type=str, default=None, help="Working directory for Triton server (default: ./.triton_replay)")
-    parser.add_argument("--models", type=str, nargs="+", default=["particlenet_AK4_PT"], help="Names of model(s) to load (default: particlenet_AK4_PT)")
+    parser = argparse.ArgumentParser(
+        description="SONIC debugging interface - a simple REPL for replaying Triton inference requests",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter
+    )
+    parser.add_argument("--working-dir", type=str, default="./.triton_replay", help="Working directory for Triton server")
+    parser.add_argument("--models", type=str, nargs="+", default=["particlenet_AK4_PT"], help="Names of model(s) to load")
     args = parser.parse_args()
 
-    if (args.working_dir is None):
-        args.working_dir = os.path.join(os.pwd(), ".triton_replay")
+    # # replace with absolute path (may be unnecessary)
+    # if (args.working_dir == "./.triton_replay"):
+    #     args.working_dir = os.path.join(os.pwd(), ".triton_replay")
 
     # TODO: remove hard-coded paths
     model_args_list = ["-m /uscms_data/d1/ecolbert/sonic/sonic-models/models/{}".format(model) for model in args.models]
