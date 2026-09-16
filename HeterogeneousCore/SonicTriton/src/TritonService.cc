@@ -279,6 +279,8 @@ void TritonService::preBeginJob(edm::ProcessContext const&) {
   fallbackOpts_.command += " -g " + fallbackOpts_.device;
   fallbackOpts_.command += " -d " + fallbackOpts_.container;
   if (fallbackOpts_.debug)
+    fallbackOpts_.command += " -b";
+  if (fallbackOpts_.noCleanup)
     fallbackOpts_.command += " -c";
   if (fallbackOpts_.verbose)
     fallbackOpts_.command += " -v";
@@ -311,7 +313,7 @@ void TritonService::preBeginJob(edm::ProcessContext const&) {
 
   std::string command = fallbackOpts_.command + " start";
 
-  if (fallbackOpts_.debug)
+  if (fallbackOpts_.debug || fallbackOpts_.noCleanup)
     edm::LogInfo("TritonService") << "Fallback server temporary directory: " << fallbackOpts_.tempDir;
   if (verbose_)
     edm::LogInfo("TritonService") << command;
@@ -437,6 +439,7 @@ void TritonService::fillDescriptions(edm::ConfigurationDescriptions& description
   edm::ParameterSetDescription fallbackDesc;
   fallbackDesc.addUntracked<bool>("enable", false);
   fallbackDesc.addUntracked<bool>("debug", false);
+  fallbackDesc.addUntracked<bool>("noCleanup", false);
   fallbackDesc.addUntracked<bool>("verbose", false);
   fallbackDesc.ifValue(edm::ParameterDescription<std::string>("container", "apptainer", false),
                        edm::allowedValues<std::string>("apptainer", "docker", "podman"));
