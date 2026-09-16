@@ -34,6 +34,7 @@ public:
     FallbackOpts(const edm::ParameterSet& pset)
         : enable(pset.getUntrackedParameter<bool>("enable")),
           debug(pset.getUntrackedParameter<bool>("debug")),
+          noCleanup(pset.getUntrackedParameter<bool>("noCleanup")),
           verbose(pset.getUntrackedParameter<bool>("verbose")),
           container(pset.getUntrackedParameter<std::string>("container")),
           device(pset.getUntrackedParameter<std::string>("device")),
@@ -52,6 +53,7 @@ public:
 
     bool enable;
     bool debug;
+    bool noCleanup;
     bool verbose;
     std::string container;
     std::string device;
