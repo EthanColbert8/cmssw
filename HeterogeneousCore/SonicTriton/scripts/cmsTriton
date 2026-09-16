@@ -10,6 +10,7 @@ RETRIES=3
 REPOS=()
 MODELS=()
 FORCE=""
+DEBUG=""
 CLEANUP=true
 TMPDIR=""
 INSTANCES=0
@@ -45,6 +46,7 @@ usage() {
 	$ECHO "cmsTriton [options] [start|stop|check]"
 	$ECHO
 	$ECHO "Options:"
+	$ECHO "-b [debug]  \t use debug server (also sets -c)"
 	$ECHO "-c          \t don't cleanup temporary dir (for debugging)"
 	$ECHO "-C [dir]    \t directory containing Nvidia compatibility drivers (checks CMSSW_BASE by default if available)"
 	$ECHO "-D          \t dry run: print container commands rather than executing them"
@@ -82,6 +84,8 @@ fi
 
 while getopts "cC:Dd:fg:i:I:M:m:n:P:p:r:s:t:vw:h" opt; do
 	case "$opt" in
+		b) DEBUG=true; CLEANUP=""
+		;;
 		c) CLEANUP=""
 		;;
 		C) COMPAT_USR="$OPTARG"
@@ -262,7 +266,7 @@ start_docker(){
 	fi
 
 	# mount dump directory if debugging
-	if [ -z "$CLEANUP" ]; then
+	if [ -n "$DEBUG" ]; then
 		MOUNTARGS="$MOUNTARGS -v$TMPDIR/dumps:/dumps"
 	fi
 
@@ -293,7 +297,7 @@ start_podman(){
 	fi
 
 	# mount dump directory if debugging
-	if [ -z "$CLEANUP" ]; then
+	if [ -n "$DEBUG" ]; then
 		MOUNTARGS="$MOUNTARGS --volume $TMPDIR/dumps:/dumps"
 	fi
 
@@ -324,7 +328,7 @@ start_apptainer(){
 	fi
 
 	# mount dump directory if debugging
-	if [ -z "$CLEANUP" ]; then
+	if [ -n "$DEBUG" ]; then
 		MOUNTARGS="$MOUNTARGS -B $TMPDIR/dumps:/dumps"
 	fi
 
@@ -426,7 +430,7 @@ wait_server(){
 list_models(){
 	# make list of model repositories
 	LOCALMODELREPO="local_model_repo"
-	if [ -n "$THREADCONTROL" ] || [ -z "$CLEANUP" ]; then
+	if [ -n "$THREADCONTROL" ] || [ -n "$DEBUG" ]; then
 		if [ -d "$TMPDIR/$LOCALMODELREPO" ]; then
 			#Want to start with a fresh copy of model files in case this directory already exists with local edits
 			rm -rf $TMPDIR/$LOCALMODELREPO
@@ -459,7 +463,7 @@ list_models(){
 		fi
 		
 		# if not cleaning up, we are debugging
-		if [ -z "$CLEANUP" ]; then 
+		if [ -n "$DEBUG" ]; then 
 			# Omit the `--dump-always` flag to only dump input tensors on inference failure
 			$DRYRUN cmsTritonConfigTool debug -c ${MODEL}/config.pbtxt --copy $TMPDIR/$LOCALMODELREPO --dump-always
 			TOOL_EXIT=$?
@@ -474,7 +478,7 @@ list_models(){
 			REPOS+=("$(dirname "$MODEL")")
 		fi
 	done
-	if [ -n "$THREADCONTROL" ] || [ -z "$CLEANUP" ]; then
+	if [ -n "$THREADCONTROL" ] || [ -n "$DEBUG" ]; then
 		REPOS=$TMPDIR/$LOCALMODELREPO
 	else
 		for ((r=0; r < ${#REPOS[@]}; r++)); do
@@ -544,7 +548,7 @@ make_tmp(){
 	fi
 
 	# Create directory for input dumps if debugging
-	if [ -z "$CLEANUP" ]; then
+	if [ -n "$DEBUG" ]; then
 		$DRYRUN mkdir "$TMPDIR/dumps"
 		DUMPDIR_EXIT=$?
 		if [ "$DUMPDIR_EXIT" -ne 0 ]; then
@@ -729,7 +733,7 @@ elif [ "$OP" == start ]; then
 		make_tmp
 
 		# if we plan on editing model configs, must copy files into /tmp/local_model_repo, which is deleted upon retry
-		if [ "$counter" -eq 0 ] || [ -n "$THREADCONTROL" ] || [ -z $CLEANUP ]; then list_models; fi
+		if [ "$counter" -eq 0 ] || [ -n "$THREADCONTROL" ] || [ -n $DEBUG ]; then list_models; fi
 
 		# only need to check drivers if using GPU
 		if [ "$DEVICE" == gpu ]; then
