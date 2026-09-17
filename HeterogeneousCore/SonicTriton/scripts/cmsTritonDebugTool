@@ -13,6 +13,7 @@ import subprocess
 import numpy as np
 from tritonclient import grpc as grpcclient
 from tritonclient import utils as tcutils
+from FWCore.ParameterSet.pfnInPath import pfnInPath
 
 class TritonReplayREPL(cmd.Cmd):
     """REPL for replaying Triton inference requests from pickled dumps."""
@@ -389,17 +390,19 @@ if (__name__ == "__main__"):
     parser.add_argument("--models", type=str, nargs="+", default=["particlenet_AK4_PT"], help="Names of model(s) to load")
     args = parser.parse_args()
 
-    # # replace with absolute path (may be unnecessary)
-    # if (args.working_dir == "./.triton_replay"):
-    #     args.working_dir = os.path.join(os.pwd(), ".triton_replay")
+    # look for models in the search path, if not found assume they are given as full paths
+    model_args_list = []
+    for model in args.models:
+        try:
+            model_path = pfnInPath("HeterogeneousCore/SonicTriton/data/models/{}/config.pbtxt".format(model))
+        except IOError:
+            model_path = model
+        model_args_list.append("-m {}".format(model_path))
 
-    # TODO: remove hard-coded paths
-    model_args_list = ["-m /uscms_data/d1/ecolbert/sonic/sonic-models/models/{}".format(model) for model in args.models]
     triton_command_list = [
-        "cmsTriton", "-f", "-c",
+        "cmsTriton", "-f", "-b",
         " ".join(model_args_list),
         "-t", args.working_dir,
-        "-s", "/uscms_data/d1/ecolbert/sonic/triton_python_cuda.sif",
         "start"
     ]
     triton_command = " ".join(triton_command_list)
