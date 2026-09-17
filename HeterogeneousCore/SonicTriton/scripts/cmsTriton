@@ -21,6 +21,8 @@ BASEPORT=8000
 AUTOPORT=""
 NPORTS=3
 IMAGE=fastml/triton-torchgeo:26.04-py3-geometric
+IMAGE_DEBUG=fastml/triton-debug:26.04-pyt-python-py3
+IMAGE_SPECIFIED=""
 SANDBOX=""
 COMPAT_USR=""
 EXTRAPATH=/cvmfs/oasis.opensciencegrid.org/mis/apptainer/current/bin
@@ -46,7 +48,7 @@ usage() {
 	$ECHO "cmsTriton [options] [start|stop|check]"
 	$ECHO
 	$ECHO "Options:"
-	$ECHO "-b [debug]  \t use debug server (also sets -c)"
+	$ECHO "-b [debug]  \t use debug server (default: ${IMAGE_DEBUG}), also sets -c"
 	$ECHO "-c          \t don't cleanup temporary dir (for debugging)"
 	$ECHO "-C [dir]    \t directory containing Nvidia compatibility drivers (checks CMSSW_BASE by default if available)"
 	$ECHO "-D          \t dry run: print container commands rather than executing them"
@@ -100,7 +102,7 @@ while getopts "cC:Dd:fg:i:I:M:m:n:P:p:r:s:t:vw:h" opt; do
 		;;
 		G) GLOBALCONNECT=true
 		;;
-		i) IMAGE="$OPTARG"
+		i) IMAGE="$OPTARG"; IMAGE_SPECIFIED=true
 		;;
 		I) INSTANCES="$OPTARG"
 		;;
@@ -134,6 +136,11 @@ OP=$1
 
 if [ "$OP" != start ] && [ "$OP" != stop ] && [ "$OP" != check ]; then
 	usage 1
+fi
+
+# switch to debugging server image
+if [ -n "$DEBUG" ] && [ -z "$IMAGE_SPECIFIED" ]; then
+	IMAGE="$IMAGE_DEBUG"
 fi
 
 # check acceptable values for device choice
@@ -461,8 +468,7 @@ list_models(){
 			fi
 			copied=true
 		fi
-		
-		# if not cleaning up, we are debugging
+
 		if [ -n "$DEBUG" ]; then 
 			# Omit the `--dump-always` flag to only dump input tensors on inference failure
 			$DRYRUN cmsTritonConfigTool debug -c ${MODEL}/config.pbtxt --copy $TMPDIR/$LOCALMODELREPO --dump-always
@@ -473,7 +479,7 @@ list_models(){
 			fi
 			copied=true
 		fi
-		
+
 		if [ "$copied" = false ]; then
 			REPOS+=("$(dirname "$MODEL")")
 		fi
