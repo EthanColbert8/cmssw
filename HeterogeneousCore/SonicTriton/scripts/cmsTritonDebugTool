@@ -21,12 +21,13 @@ class TritonReplayREPL(cmd.Cmd):
     intro = "Triton Replay REPL - Type 'help' for available commands."
     prompt = "triton> "
     
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, address="localhost:8001", **kwargs):
         super().__init__(*args, **kwargs)
         self.dump_dir = os.path.join(os.path.dirname(__file__), "..", "replay_dumps")
         self.last_request_id = None
         self.rng = np.random.default_rng()
 
+        self.address = address
         self.client = None
         self._connect_client()
     
@@ -262,6 +263,15 @@ class TritonReplayREPL(cmd.Cmd):
         """Reconnect to the Triton server."""
         self._connect_client()
     
+    def do_set_server_address(self, arg):
+        """Set the Triton server address. Usage: set_server_address <address>"""
+        if not arg:
+            print("Usage: set_server_address <address>")
+            return
+        
+        self.address = arg.strip()
+        self._connect_client()
+    
     def do_quit(self, arg):
         """Quit the REPL."""
         if self.client:
@@ -290,8 +300,8 @@ class TritonReplayREPL(cmd.Cmd):
             self.client = None
 
         try:
-            self.client = grpcclient.InferenceServerClient("localhost:8001")
-            print(f"✓ Connected to Triton server at localhost:8001")
+            self.client = grpcclient.InferenceServerClient(self.address)
+            print(f"✓ Connected to Triton server at {self.address}")
         except Exception as e:
             print(f"✗ Failed to connect to Triton server: {e}")
             self.client = None
@@ -381,39 +391,84 @@ class TritonReplayREPL(cmd.Cmd):
 
         return model_name, input_shapes
 
+def search_model(model):
+    """Search for a model on the CMSSW search path."""
+    # a heuristic to try to avoid a recursive search
+    try:
+        model_path = pfnInPath("HeterogeneousCore/SonicTriton/data/models/{}/config.pbtxt".format(model))
+        return model_path
+    except IOError:
+        pass
+
+    for path in os.environ["CMSSW_SEARCH_PATH"].split(":"):
+        for dirpath, dirnames, filenames in os.walk(path, followlinks=True):
+            if any(dirname == model for dirname in dirnames):
+                model_filename = os.path.join(dirpath, model, "config.pbtxt")
+                if os.path.isfile(model_filename):
+                    return model_filename
+
+    # if not found, assume model is given as fully-qualified path
+    return model
+
 if (__name__ == "__main__"):
     parser = argparse.ArgumentParser(
         description="SONIC debugging interface - a simple REPL for replaying Triton inference requests",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
     parser.add_argument("--working-dir", type=str, default="./.triton_replay", help="Working directory for Triton server")
-    parser.add_argument("--models", type=str, nargs="+", default=["particlenet_AK4_PT"], help="Names of model(s) to load")
+    parser.add_argument("--models", type=str, nargs="+", default=None, help="Names of model(s) to load, ignored if --address given")
+    parser.add_argument("--address", type=str, default=None, help="Connect to existing server at given address, including port, instead of starting one")
+    parser.add_argument("--device", type=str, default=None, help="Instruct server to use device, ignored if --address given")
+    parser.add_argument("--port", type=int, default=8001, help="Port for Triton gRPC server, ignored if --address given")
+    parser.add_argument("--extra-args", type=str, default=None, help="Extra args to pass to cmsTriton, ignored if --address given")
     args = parser.parse_args()
 
-    # look for models in the search path, if not found assume they are given as full paths
-    model_args_list = []
-    for model in args.models:
-        try:
-            model_path = pfnInPath("HeterogeneousCore/SonicTriton/data/models/{}/config.pbtxt".format(model))
-        except IOError:
-            model_path = model
-        model_args_list.append("-m {}".format(model_path))
+    server_address = "localhost:{}".format(args.port)
 
-    triton_command_list = [
-        "cmsTriton", "-f", "-b",
-        " ".join(model_args_list),
-        "-t", args.working_dir,
-        "start"
-    ]
-    triton_command = " ".join(triton_command_list)
+    if (args.address is None):
+        if (args.models is None):
+            print("Error: no external server or models to load specified. Use --address or --models.")
+            sys.exit(1)
 
-    model_start_result = subprocess.run(triton_command, shell=True, capture_output=True, text=True)
-    if (model_start_result.returncode != 0):
-        print("Failed to start local Triton server. Error: {}".format(model_start_result.stdout))
-        sys.exit(model_start_result.returncode)
-    print("Started local Triton server. Connecting.")
+        model_args_list = ["-m {}".format(search_model(model)) for model in args.models]
 
-    repl = TritonReplayREPL()
+        has_extra_args = False
+        extra_args_list = []
+
+        if (args.device is not None):
+            if (args.device not in ["auto", "CPU", "GPU"]):
+                print("Error: invalid device specified. Must be one of 'auto', 'CPU', or 'GPU'.")
+                sys.exit(1)
+            has_extra_args = True
+            extra_args_list.append("-g {}".format(args.device))
+
+        # we are blindly trusting the user to know cmsTriton for the extra args
+        if (args.extra_args is not None):
+            has_extra_args = True
+            extra_args_list.append(args.extra_args)
+
+        triton_command_list = [
+            "cmsTriton", "-f", "-b",
+            " ".join(model_args_list),
+            "-t", args.working_dir,
+            "-P", str(args.port - 1), # we want the gRPC port on the specified one
+        ]
+        if has_extra_args:
+            triton_command_list.extend(extra_args_list)
+        triton_command_list.append("start")
+        triton_command = " ".join(triton_command_list)
+
+        model_start_result = subprocess.run(triton_command, shell=True, capture_output=True, text=True)
+        if (model_start_result.returncode != 0):
+            print("Failed to start local Triton server. Error: {}".format(model_start_result.stdout))
+            sys.exit(model_start_result.returncode)
+        print("Started local Triton server. Connecting.")
+
+    else:
+        server_address = args.address
+        print("Connecting to existing Triton server at {}".format(server_address))
+
+    repl = TritonReplayREPL(address=server_address)
     repl.do_set_dump_dir("{}/dumps".format(args.working_dir))
 
     repl.cmdloop()
