@@ -179,6 +179,24 @@ The `edit` mode is intended for generic modifications, and only supports overwri
 (not modifying, removing, deleting, etc.).
 Additional dedicated modes, like `checksum` and `threadcontrol`, can easily be added for more complicated tasks.
 
+### `cmsTritonDebugTool`
+
+A Python-based REPL is provided for interactively debugging issues serving models with Triton.
+It relies on Triton's Python backend to enable "dumping" of each request's inputs and outputs to disk, so they can be inspected and re-requested ("replayed").
+The tool can connect to a running Triton server (for example, one started externally using `cmsTriton`):
+```bash
+cmsTritonDebugTool --address "localhost:8001" --working-dir "./.triton_temp_dir"
+```
+It can also automatically start a local debugging server, using `cmsTriton` internally.
+For example, to debug with both the PyTorch and ONNX versions of ParticleNet:
+```bash
+cmsTritonDebugTool --port 9001 --models particlenet_AK4_PT particlenet_AK4
+```
+There are dedicated options to configure the server port and desired device ("CPU", "GPU", or "auto"), and an option to pass additional extra arguments through to `cmsTriton`, for example, to control the container platform used:
+```bash
+cmsTritonDebugTool --port 9001 --device GPU --extra-args "-d podman" --models particlenet_AK4_PT
+```
+
 ### `TritonService`
 
 A central `TritonService` is provided to keep track of all available servers and which models they can serve.
