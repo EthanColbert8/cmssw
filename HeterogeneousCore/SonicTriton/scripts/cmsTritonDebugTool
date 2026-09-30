@@ -431,20 +431,16 @@ if (__name__ == "__main__"):
             sys.exit(1)
 
         model_args_list = ["-m {}".format(search_model(model)) for model in args.models]
-
-        has_extra_args = False
         extra_args_list = []
 
         if (args.device is not None):
             if (args.device not in ["auto", "CPU", "GPU"]):
                 print("Error: invalid device specified. Must be one of 'auto', 'CPU', or 'GPU'.")
                 sys.exit(1)
-            has_extra_args = True
             extra_args_list.append("-g {}".format(args.device))
 
         # we are blindly trusting the user to know cmsTriton for the extra args
         if (args.extra_args is not None):
-            has_extra_args = True
             extra_args_list.append(args.extra_args)
 
         triton_command_list = [
@@ -452,10 +448,7 @@ if (__name__ == "__main__"):
             " ".join(model_args_list),
             "-t", args.working_dir,
             "-P", str(args.port - 1), # we want the gRPC port on the specified one
-        ]
-        if has_extra_args:
-            triton_command_list.extend(extra_args_list)
-        triton_command_list.append("start")
+        ] + extra_args_list + ["start"]
         triton_command = " ".join(triton_command_list)
 
         model_start_result = subprocess.run(triton_command, shell=True, capture_output=True, text=True)
