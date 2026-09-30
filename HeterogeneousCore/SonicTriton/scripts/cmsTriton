@@ -209,7 +209,11 @@ EXTRA=""
 COMPAT_SCRIPT=/etc/shinit_v2
 
 # this will be reset later if chosen device is gpu
-if [ "$INSTANCES" -gt 0 ] && [ -z "$DEBUG" ]; then
+if [ "$INSTANCES" -gt 0 ]; then
+	if [ -n "$DEBUG" ]; then
+		echo "Model instance control not supported by debugging server"
+		exit 1
+	fi
 	THREADCONTROL=true
 fi
 
