@@ -209,7 +209,7 @@ EXTRA=""
 COMPAT_SCRIPT=/etc/shinit_v2
 
 # this will be reset later if chosen device is gpu
-if [ "$INSTANCES" -gt 0 ]; then
+if [ "$INSTANCES" -gt 0 ] && [ -z "$DEBUG" ]; then
 	THREADCONTROL=true
 fi
 
@@ -459,22 +459,21 @@ list_models(){
 		# if we copy/alter the config, set this to true
 		copied=false
 
-		if [ -n "$THREADCONTROL" ]; then
-			$DRYRUN cmsTritonConfigTool threadcontrol -c ${MODEL}/config.pbtxt --copy $TMPDIR/$LOCALMODELREPO --nThreads $INSTANCES
-			TOOL_EXIT=$?
-			if [ "$TOOL_EXIT" -ne 0 ]; then
-				echo "Could not apply threadcontrol to $MODEL"
-				exit "$TOOL_EXIT"
-			fi
-			copied=true
-		fi
-
+		# DEBUG and THREADCONTROL should never both be true
 		if [ -n "$DEBUG" ]; then 
 			# Omit the `--dump-always` flag to only dump input tensors on inference failure
 			$DRYRUN cmsTritonConfigTool debug -c ${MODEL}/config.pbtxt --copy $TMPDIR/$LOCALMODELREPO --dump-always
 			TOOL_EXIT=$?
 			if [ "$TOOL_EXIT" -ne 0 ]; then
 				echo "Could not apply debug configuration to $MODEL"
+				exit "$TOOL_EXIT"
+			fi
+			copied=true
+		elif [ -n "$THREADCONTROL" ]; then
+			$DRYRUN cmsTritonConfigTool threadcontrol -c ${MODEL}/config.pbtxt --copy $TMPDIR/$LOCALMODELREPO --nThreads $INSTANCES
+			TOOL_EXIT=$?
+			if [ "$TOOL_EXIT" -ne 0 ]; then
+				echo "Could not apply threadcontrol to $MODEL"
 				exit "$TOOL_EXIT"
 			fi
 			copied=true
