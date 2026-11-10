@@ -84,7 +84,7 @@ if [ -e /run/shm ]; then
 	SHM=/run/shm
 fi
 
-while getopts "cC:Dd:fg:i:I:M:m:n:P:p:r:s:t:vw:h" opt; do
+while getopts "bcC:Dd:fg:i:I:M:m:n:P:p:r:s:t:vw:h" opt; do
 	case "$opt" in
 		b) DEBUG=true; CLEANUP=""
 		;;
